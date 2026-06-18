@@ -8,10 +8,11 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
-import { PlayIcon, SearchIcon } from '../components/Icons';
+import { PlayIcon, SearchIcon, RadioIcon } from '../components/Icons';
 import BottomTabBar from '../components/BottomTabBar';
 import MiniPlayer from '../components/MiniPlayer';
 import { catalogService } from '../services/catalogService';
+import { useTheme } from '../context/ThemeContext';
 import type { Song } from '../types';
 
 const SPOTIFY_GREEN = '#1DB954';
@@ -27,6 +28,8 @@ type ScreenProps = {
   playbackProgress: number;
   isFavorite: (songId: string) => boolean;
   onToggleFavorite: (songId: string) => void;
+  setRadioMode?: (v: boolean) => void;
+  setRadioFilter?: (f: { type: 'artist' | 'album'; id: string } | null) => void;
 };
 
 export default function DiscoverScreen({
@@ -38,16 +41,19 @@ export default function DiscoverScreen({
   playbackProgress,
   isFavorite,
   onToggleFavorite,
+  setRadioMode,
+  setRadioFilter,
 }: ScreenProps) {
+  const { colors } = useTheme();
   const songs = catalogService.getSongsSync();
   const heroSong = useMemo(() => songs[0] ?? null, [songs]);
 
   const featuredArtists = useMemo(() => {
-    const artistMap = new Map<string, { name: string; count: number }>();
+    const artistMap = new Map<string, { name: string; artist_id: string; count: number }>();
     songs.forEach(s => {
       const name = s.artist?.name ?? 'Inconnu';
       const id = s.artist_id;
-      if (!artistMap.has(id)) artistMap.set(id, { name, count: 1 });
+      if (!artistMap.has(id)) artistMap.set(id, { name, artist_id: id, count: 1 });
       else artistMap.get(id)!.count++;
     });
     return Array.from(artistMap.entries())
@@ -55,15 +61,24 @@ export default function DiscoverScreen({
       .slice(0, 6);
   }, [songs]);
 
+  const startRadioByArtist = (artistId: string) => {
+    const artistSongs = songs.filter(s => s.artist_id === artistId);
+    if (artistSongs.length > 0) {
+      setRadioMode?.(true);
+      setRadioFilter?.({ type: 'artist', id: artistId });
+      onPlaySong(artistSongs[0], artistSongs);
+    }
+  };
+
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" />
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <View>
-            <Text style={styles.headerSub}>Bienvenue</Text>
-            <Text style={styles.headerTitle}>Découvrir</Text>
+            <Text style={[styles.headerSub, { color: colors.textSecondary }]}>Bienvenue</Text>
+            <Text style={[styles.headerTitle, { color: colors.text }]}>Découvrir</Text>
           </View>
           <TouchableOpacity style={styles.searchBtn} onPress={() => onNavigate('search')}>
             <SearchIcon size={18} color="#fff" />
@@ -97,7 +112,7 @@ export default function DiscoverScreen({
         ) : null}
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Artistes populaires</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Artistes populaires</Text>
           <TouchableOpacity onPress={() => onNavigate('library')}>
             <Text style={styles.sectionSeeAll}>Voir tout</Text>
           </TouchableOpacity>
@@ -107,8 +122,8 @@ export default function DiscoverScreen({
           horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.artistsRow}>
-          {featuredArtists.map(([id, { name, count }], idx) => (
-            <View key={id} style={styles.artistCard}>
+          {featuredArtists.map(([id, { name, count, artist_id }], idx) => (
+            <TouchableOpacity key={id} style={styles.artistCard} onPress={() => onNavigate('library')}>
               <View
                 style={[
                   styles.artistAvatar,
@@ -122,12 +137,16 @@ export default function DiscoverScreen({
               <Text style={styles.artistSongCount}>
                 {count} titre{count > 1 ? 's' : ''}
               </Text>
-            </View>
+              <TouchableOpacity style={styles.artistRadioBtn} onPress={() => startRadioByArtist(artist_id)}>
+                <RadioIcon size={14} color="#fff" />
+                <Text style={styles.artistRadioText}>Radio</Text>
+              </TouchableOpacity>
+            </TouchableOpacity>
           ))}
         </ScrollView>
 
         <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Tous les titres</Text>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>Tous les titres</Text>
           <Text style={styles.sectionSeeAll}>{songs.length} titres</Text>
         </View>
 
@@ -140,10 +159,10 @@ export default function DiscoverScreen({
               activeOpacity={0.85}>
               <Image source={catalogService.getCoverForIndex(index)} style={styles.gridImage} />
               <View style={styles.gridInfo}>
-                <Text style={styles.gridTitle} numberOfLines={1}>
+                <Text style={[styles.gridTitle, { color: colors.text }]} numberOfLines={1}>
                   {song.title}
                 </Text>
-                <Text style={styles.gridArtist} numberOfLines={1}>
+                <Text style={[styles.gridArtist, { color: colors.textSecondary }]} numberOfLines={1}>
                   {song.artist?.name ?? 'Artiste inconnu'}
                 </Text>
               </View>
@@ -174,7 +193,7 @@ export default function DiscoverScreen({
 const ARTIST_COLORS = ['#1DB954', '#E91E63', '#FF9800', '#2196F3', '#9C27B0', '#00BCD4'];
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A12' },
+  container: { flex: 1 },
   scroll: { flex: 1 },
   header: {
     paddingHorizontal: 24,
@@ -183,12 +202,11 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerSub: { fontSize: 12, color: 'rgba(255,255,255,0.6)' },
+  headerSub: { fontSize: 12 },
   headerTitle: {
     fontSize: 26,
     fontWeight: '700',
     letterSpacing: -0.5,
-    color: '#fff',
     marginTop: 2,
   },
   searchBtn: {
@@ -208,7 +226,7 @@ const styles = StyleSheet.create({
   },
   heroBg: { position: 'absolute', width: '100%', height: '100%' },
   heroOverlay: {
-    ...StyleSheet.absoluteFillObject,
+    ...StyleSheet.absoluteFill,
     backgroundColor: 'rgba(0,0,0,0.45)',
   },
   heroContent: { flex: 1, padding: 18, justifyContent: 'space-between' },
@@ -253,6 +271,8 @@ const styles = StyleSheet.create({
   artistInitial: { fontSize: 24, fontWeight: '700', color: '#fff' },
   artistName: { fontSize: 11, fontWeight: '600', color: '#fff', textAlign: 'center' },
   artistSongCount: { fontSize: 10, color: 'rgba(255,255,255,0.5)', marginTop: 2 },
+  artistRadioBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, marginTop: 6, backgroundColor: 'rgba(29, 185, 84, 0.15)', borderRadius: 12, paddingVertical: 3, paddingHorizontal: 8 },
+  artistRadioText: { fontSize: 9, color: '#fff', fontWeight: '600' },
   sectionHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -261,7 +281,7 @@ const styles = StyleSheet.create({
     marginTop: 28,
     marginBottom: 14,
   },
-  sectionTitle: { fontSize: 17, fontWeight: '700', color: '#fff' },
+  sectionTitle: { fontSize: 17, fontWeight: '700' },
   sectionSeeAll: { fontSize: 12, color: SPOTIFY_GREEN, fontWeight: '500' },
   grid: {
     flexDirection: 'row',
@@ -280,6 +300,6 @@ const styles = StyleSheet.create({
   },
   gridImage: { width: 46, height: 46, borderRadius: 8 },
   gridInfo: { flex: 1 },
-  gridTitle: { fontSize: 12, fontWeight: '600', color: '#fff' },
-  gridArtist: { fontSize: 10, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
+  gridTitle: { fontSize: 12, fontWeight: '600' },
+  gridArtist: { fontSize: 10, marginTop: 2 },
 });

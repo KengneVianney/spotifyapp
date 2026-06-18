@@ -74,3 +74,40 @@ export interface PlayHistory {
   listened_at: string;
   duration_played_seconds: number;
 }
+
+// --- Collaborative Playlist (8 personnes) ---
+export interface CollaborativePlaylist {
+  id: string;
+  name: string;
+  creatorId: string;
+  creatorName: string;
+  contributors: Contributor[];
+  songIds: string[];
+  createdAt: string;
+}
+
+export interface Contributor {
+  id: string;
+  name: string;
+  addedSongIds: string[];
+}
+
+// --- Shared Music ---
+export interface SharedMusicPackage {
+  id: string;
+  senderName: string;
+  songIds: string[];
+  message?: string;
+  sentAt: string;
+  receivedAt?: string;
+}
+
+export interface Lyrics {
+  id: string;
+  song_id: string;
+  content: string;
+  is_synced: boolean;
+  language?: string;
+}
+
+export type SocialProvider = 'google' | 'github';

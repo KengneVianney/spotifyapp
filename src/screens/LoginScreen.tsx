@@ -202,6 +202,42 @@ export default function LoginScreen({ onLoginSuccess, onNavigateToSignUp }: Logi
               )}
             </TouchableOpacity>
 
+            {/* Social Login */}
+            <View style={styles.socialRow}>
+              <TouchableOpacity
+                style={[styles.socialBtn, styles.socialBtnGoogle]}
+                onPress={async () => {
+                  try {
+                    setLoading(true);
+                    await authService.signInWithGoogle();
+                  } catch (err: any) {
+                    setServerError(err.message || 'Erreur Google.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                activeOpacity={0.85}>
+                <Text style={styles.socialBtnText}>G</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[styles.socialBtn, styles.socialBtnGithub]}
+                onPress={async () => {
+                  try {
+                    setLoading(true);
+                    await authService.signInWithGithub();
+                  } catch (err: any) {
+                    setServerError(err.message || 'Erreur GitHub.');
+                  } finally {
+                    setLoading(false);
+                  }
+                }}
+                disabled={loading}
+                activeOpacity={0.85}>
+                <Text style={styles.socialBtnText}>GH</Text>
+              </TouchableOpacity>
+            </View>
+
             <View style={styles.separator}>
               <View style={styles.separatorLine} />
               <Text style={styles.separatorText}>ou</Text>
@@ -279,6 +315,15 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+  socialRow: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 8 },
+  socialBtn: {
+    width: 56, height: 56, borderRadius: 16,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1,
+  },
+  socialBtnGoogle: { borderColor: '#2A2A3E', backgroundColor: '#0F0F18' },
+  socialBtnGithub: { borderColor: '#2A2A3E', backgroundColor: '#0F0F18' },
+  socialBtnText: { fontSize: 20, fontWeight: '700', color: '#fff' },
   separator: { flexDirection: 'row', alignItems: 'center', marginVertical: 20 },
   separatorLine: { flex: 1, height: 1, backgroundColor: '#1E1E2E' },
   separatorText: { color: '#444', marginHorizontal: 12, fontSize: 13 },

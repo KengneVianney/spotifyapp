@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,16 +8,17 @@ import {
   StatusBar,
   ScrollView,
 } from 'react-native';
-import { PlayIcon } from '../components/Icons';
+import { PlayIcon, RadioIcon, TrendingIcon } from '../components/Icons';
 import BottomTabBar from '../components/BottomTabBar';
 import MiniPlayer from '../components/MiniPlayer';
 import { catalogService } from '../services/catalogService';
+import { useTheme } from '../context/ThemeContext';
 import type { Song, Artist, Album } from '../types';
 import type { CuratedPlaylist } from '../data/localMusicData';
 
 const SPOTIFY_GREEN = '#1DB954';
 
-type AppScreen = 'discover' | 'nowplaying' | 'search' | 'library';
+type AppScreen = 'discover' | 'nowplaying' | 'search' | 'library' | 'collaborative' | 'share' | 'history' | 'playlistmanage' | 'topcharts' | 'profile';
 
 type ScreenProps = {
   onNavigate: (screen: AppScreen) => void;
@@ -30,6 +31,8 @@ type ScreenProps = {
   isFavorite: (songId: string) => boolean;
   onToggleFavorite: (songId: string) => void;
   onLogout: () => void;
+  setRadioMode?: (v: boolean) => void;
+  setRadioFilter?: (f: { type: 'artist' | 'album'; id: string } | null) => void;
 };
 
 type ActiveTab = 'playlists' | 'artists' | 'albums';
@@ -47,7 +50,10 @@ export default function LibraryScreen({
   isFavorite,
   onToggleFavorite,
   onLogout,
+  setRadioMode,
+  setRadioFilter,
 }: ScreenProps) {
+  const { colors } = useTheme();
   const [activeTab, setActiveTab] = useState<ActiveTab>('playlists');
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
@@ -73,7 +79,15 @@ export default function LibraryScreen({
     return catalogService.getPlaylistSongs(selectedPlaylist.id, favoriteIds);
   }, [selectedPlaylist, favoriteIds, songs]);
 
-  const renderSongList = (list: Song[]) =>
+  const startRadio = useCallback((filter: { type: 'artist' | 'album'; id: string }, songsList: Song[]) => {
+    setRadioFilter?.(filter);
+    setRadioMode?.(true);
+    if (songsList.length > 0) {
+      onPlaySong(songsList[0], songsList);
+    }
+  }, [setRadioFilter, setRadioMode, onPlaySong]);
+
+  const renderSongList = (list: Song[], radioFilterType?: 'artist' | 'album', filterId?: string) =>
     list.map((song, idx) => {
       const globalIndex = songs.findIndex(s => s.id === song.id);
       const isCurrentSong = currentSong?.id === song.id;
@@ -88,10 +102,10 @@ export default function LibraryScreen({
             style={styles.songCover}
           />
           <View style={styles.songInfo}>
-            <Text style={[styles.songTitle, isCurrentSong && styles.songTitleActive]} numberOfLines={1}>
+            <Text style={[styles.songTitle, isCurrentSong && styles.songTitleActive, { color: colors.text }]} numberOfLines={1}>
               {song.title}
             </Text>
-            <Text style={styles.songArtist} numberOfLines={1}>
+            <Text style={[styles.songArtist, { color: colors.textSecondary }]} numberOfLines={1}>
               {song.artist?.name ?? 'Artiste inconnu'}
             </Text>
           </View>
@@ -110,13 +124,15 @@ export default function LibraryScreen({
     onBack: () => void,
     coverImage?: ReturnType<typeof catalogService.getCoverForIndex>,
     initialColor?: string,
+    radioFilterType?: 'artist' | 'album',
+    filterId?: string,
   ) => (
-    <View style={styles.detailContainer}>
+    <View style={[styles.detailContainer, { backgroundColor: colors.background }]}>
       <View style={styles.detailHeader}>
         <TouchableOpacity style={styles.backBtn} onPress={onBack}>
           <Text style={styles.backBtnText}>← Retour</Text>
         </TouchableOpacity>
-        <Text style={styles.detailHeaderTitle} numberOfLines={1}>
+        <Text style={[styles.detailHeaderTitle, { color: colors.text }]} numberOfLines={1}>
           {title}
         </Text>
       </View>
@@ -131,25 +147,35 @@ export default function LibraryScreen({
             </View>
           )}
           <View style={styles.bannerText}>
-            <Text style={styles.bannerTitle} numberOfLines={2}>
+            <Text style={[styles.bannerTitle, { color: colors.text }]} numberOfLines={2}>
               {title}
             </Text>
-            <Text style={styles.bannerSubtitle}>{subtitle}</Text>
+            <Text style={[styles.bannerSubtitle, { color: colors.textSecondary }]}>{subtitle}</Text>
             <Text style={styles.bannerMeta}>
               {songsList.length} titre{songsList.length > 1 ? 's' : ''}
             </Text>
           </View>
         </View>
 
-        <TouchableOpacity
-          style={styles.playAllBtn}
-          onPress={() => songsList.length > 0 && onPlaySong(songsList[0], songsList)}>
-          <PlayIcon size={20} color="#fff" />
-          <Text style={styles.playAllText}>Tout écouter</Text>
-        </TouchableOpacity>
+        <View style={styles.actionRow}>
+          <TouchableOpacity
+            style={styles.playAllBtn}
+            onPress={() => songsList.length > 0 && onPlaySong(songsList[0], songsList)}>
+            <PlayIcon size={20} color="#fff" />
+            <Text style={styles.playAllText}>Tout écouter</Text>
+          </TouchableOpacity>
+          {radioFilterType && filterId && (
+            <TouchableOpacity
+              style={styles.radioBtn}
+              onPress={() => startRadio({ type: radioFilterType, id: filterId }, songsList)}>
+              <RadioIcon size={18} color="#fff" />
+              <Text style={styles.radioBtnText}>Lancer la radio</Text>
+            </TouchableOpacity>
+          )}
+        </View>
 
         <View style={styles.detailSongs}>
-          {renderSongList(songsList)}
+          {renderSongList(songsList, radioFilterType, filterId)}
           {songsList.length === 0 ? (
             <Text style={styles.emptyText}>
               {selectedPlaylist?.isLikes
@@ -184,6 +210,8 @@ export default function LibraryScreen({
       () => setSelectedArtist(null),
       undefined,
       ARTIST_COLORS[idx >= 0 ? idx % ARTIST_COLORS.length : 0],
+      'artist',
+      selectedArtist.id,
     );
   }
 
@@ -196,6 +224,9 @@ export default function LibraryScreen({
       albumSongs,
       () => setSelectedAlbum(null),
       catalogService.getCoverForIndex(idx >= 0 ? idx + 1 : 0),
+      undefined,
+      'album',
+      selectedAlbum.id,
     );
   }
 
@@ -213,15 +244,35 @@ export default function LibraryScreen({
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" />
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>Ma Bibliothèque</Text>
-          <TouchableOpacity onPress={onLogout}>
-            <Text style={styles.logoutText}>Déconnexion</Text>
-          </TouchableOpacity>
+          <Text style={[styles.headerTitle, { color: colors.text }]}>Ma Bibliothèque</Text>
+          <View style={styles.headerActions}>
+            <TouchableOpacity onPress={() => onNavigate('topcharts')} style={styles.headerActionBtn}>
+              <TrendingIcon size={18} color="#fff" />
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onNavigate('profile')} style={styles.headerActionBtn}>
+              <Text style={styles.headerActionText}>👤</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onNavigate('history')} style={styles.headerActionBtn}>
+              <Text style={styles.headerActionText}>🕐</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onNavigate('playlistmanage')} style={styles.headerActionBtn}>
+              <Text style={styles.headerActionText}>📋</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onNavigate('share')} style={styles.headerActionBtn}>
+              <Text style={styles.headerActionText}>📤</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => onNavigate('collaborative')} style={styles.headerActionBtn}>
+              <Text style={styles.headerActionText}>👥</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onLogout}>
+              <Text style={styles.logoutText}>Déconnexion</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.categoryTabs}>
@@ -253,8 +304,8 @@ export default function LibraryScreen({
                     <Text style={styles.plIcon}>{pl.isLikes ? '❤️' : '🎶'}</Text>
                   </View>
                   <View style={styles.libRowInfo}>
-                    <Text style={styles.rowTitle}>{pl.title}</Text>
-                    <Text style={styles.rowSubtitle}>
+                    <Text style={[styles.rowTitle, { color: colors.text }]}>{pl.title}</Text>
+                    <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
                       Playlist · {pl.creator} · {count} titres
                     </Text>
                   </View>
@@ -280,8 +331,8 @@ export default function LibraryScreen({
                       <Text style={styles.artistLetter}>{artist.name.charAt(0).toUpperCase()}</Text>
                     </View>
                     <View style={styles.libRowInfo}>
-                      <Text style={styles.rowTitle}>{artist.name}</Text>
-                      <Text style={styles.rowSubtitle}>
+                      <Text style={[styles.rowTitle, { color: colors.text }]}>{artist.name}</Text>
+                      <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
                         Artiste · {count} titre{count > 1 ? 's' : ''}
                       </Text>
                     </View>
@@ -301,8 +352,8 @@ export default function LibraryScreen({
                   onPress={() => setSelectedAlbum(album)}>
                   <Image source={catalogService.getCoverForIndex(idx + 1)} style={styles.albumCover} />
                   <View style={styles.libRowInfo}>
-                    <Text style={styles.rowTitle}>{album.title}</Text>
-                    <Text style={styles.rowSubtitle}>
+                    <Text style={[styles.rowTitle, { color: colors.text }]}>{album.title}</Text>
+                    <Text style={[styles.rowSubtitle, { color: colors.textSecondary }]}>
                       Album · {artist?.name} · {count} titres
                     </Text>
                   </View>
@@ -332,7 +383,7 @@ export default function LibraryScreen({
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#0A0A12' },
+  container: { flex: 1 },
   scroll: { flex: 1 },
   header: {
     paddingHorizontal: 24,
@@ -341,7 +392,10 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  headerTitle: { fontSize: 28, fontWeight: '700', color: '#fff' },
+  headerTitle: { fontSize: 28, fontWeight: '700' },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 12, flexWrap: 'wrap', justifyContent: 'flex-end' },
+  headerActionBtn: { padding: 4 },
+  headerActionText: { fontSize: 18 },
   logoutText: { fontSize: 13, color: SPOTIFY_GREEN, fontWeight: '600' },
   categoryTabs: { flexDirection: 'row', paddingHorizontal: 24, gap: 12, marginBottom: 20 },
   catTab: {
@@ -375,9 +429,10 @@ const styles = StyleSheet.create({
   artistLetter: { fontSize: 22, fontWeight: '700', color: '#fff' },
   albumCover: { width: 60, height: 60, borderRadius: 8 },
   libRowInfo: { flex: 1 },
-  rowTitle: { fontSize: 15, fontWeight: '600', color: '#fff' },
-  rowSubtitle: { fontSize: 12, color: 'rgba(255,255,255,0.5)', marginTop: 4 },
-  detailContainer: { flex: 1, backgroundColor: '#0A0A12' },
+  rowTitle: { fontSize: 15, fontWeight: '600' },
+  rowSubtitle: { fontSize: 12, marginTop: 4 },
+  actionRow: { flexDirection: 'row', gap: 12, marginBottom: 24 },
+  detailContainer: { flex: 1 },
   detailHeader: {
     height: 56,
     flexDirection: 'row',
@@ -388,7 +443,7 @@ const styles = StyleSheet.create({
   },
   backBtn: { paddingRight: 16 },
   backBtnText: { color: SPOTIFY_GREEN, fontSize: 15, fontWeight: '600' },
-  detailHeaderTitle: { flex: 1, fontSize: 16, fontWeight: '700', color: '#fff' },
+  detailHeaderTitle: { flex: 1, fontSize: 16, fontWeight: '700' },
   detailScroll: { paddingHorizontal: 24, paddingTop: 24 },
   bannerInfo: { flexDirection: 'row', gap: 20, alignItems: 'center', marginBottom: 24 },
   bannerCover: { width: 110, height: 110, borderRadius: 14 },
@@ -401,8 +456,8 @@ const styles = StyleSheet.create({
   },
   bannerAvatarText: { fontSize: 48, fontWeight: '700', color: '#fff' },
   bannerText: { flex: 1 },
-  bannerTitle: { fontSize: 22, fontWeight: '700', color: '#fff' },
-  bannerSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.6)', marginTop: 6 },
+  bannerTitle: { fontSize: 22, fontWeight: '700' },
+  bannerSubtitle: { fontSize: 13, marginTop: 6 },
   bannerMeta: { fontSize: 12, color: SPOTIFY_GREEN, fontWeight: '600', marginTop: 8 },
   playAllBtn: {
     flexDirection: 'row',
@@ -413,8 +468,20 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     paddingHorizontal: 24,
     gap: 8,
-    marginBottom: 24,
   },
+  radioBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(29, 185, 84, 0.15)',
+    borderRadius: 24,
+    paddingVertical: 12,
+    paddingHorizontal: 20,
+    gap: 8,
+    borderWidth: 1,
+    borderColor: SPOTIFY_GREEN,
+  },
+  radioBtnText: { color: '#fff', fontWeight: '700', fontSize: 13 },
   playAllText: { color: '#fff', fontWeight: '700', fontSize: 14 },
   detailSongs: { gap: 4 },
   emptyText: { color: 'rgba(255,255,255,0.4)', textAlign: 'center', marginTop: 32 },
@@ -429,8 +496,8 @@ const styles = StyleSheet.create({
   songRowActive: { backgroundColor: 'rgba(29, 185, 84, 0.1)' },
   songCover: { width: 48, height: 48, borderRadius: 8 },
   songInfo: { flex: 1 },
-  songTitle: { fontSize: 14, fontWeight: '600', color: '#fff' },
+  songTitle: { fontSize: 14, fontWeight: '600' },
   songTitleActive: { color: SPOTIFY_GREEN },
-  songArtist: { fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
+  songArtist: { fontSize: 12, marginTop: 2 },
   songDuration: { fontSize: 12, color: 'rgba(255,255,255,0.4)' },
 });

@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Kabod Music — Partage WiFi</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: #0A0A12;
+      color: #fff;
+      min-height: 100vh;
+    }
+    .container { max-width: 800px; margin: 0 auto; padding: 24px; }
+    header { text-align: center; padding: 32px 0; }
+    h1 { font-size: 28px; font-weight: 700; letter-spacing: -0.5px; }
+    .accent { color: #1DB954; }
+    .subtitle { color: rgba(255,255,255,0.5); margin-top: 8px; font-size: 14px; }
+    .server-info {
+      background: #13131A; border-radius: 16px; padding: 20px;
+      border: 1px solid #1E1E2E; margin-bottom: 32px;
+    }
+    .server-info h2 { font-size: 14px; color: #1DB954; margin-bottom: 8px; text-transform: uppercase; letter-spacing: 1px; }
+    .server-info p { color: rgba(255,255,255,0.6); font-size: 13px; line-height: 1.6; }
+    .server-info code {
+      background: #0F0F18; padding: 2px 8px; border-radius: 4px;
+      color: #1DB954; font-size: 13px;
+    }
+    .songs-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px; }
+    .songs-header h2 { font-size: 18px; }
+    .count { color: rgba(255,255,255,0.4); font-size: 14px; }
+    .song-list { display: flex; flex-direction: column; gap: 8px; }
+    .song-card {
+      display: flex; align-items: center; justify-content: space-between;
+      background: #13131A; border-radius: 12px; padding: 14px 16px;
+      border: 1px solid #1E1E2E; transition: border-color 0.2s;
+    }
+    .song-card:hover { border-color: #1DB954; }
+    .song-info { flex: 1; }
+    .song-name { font-size: 14px; font-weight: 600; color: #fff; }
+    .song-meta { font-size: 12px; color: rgba(255,255,255,0.4); margin-top: 4px; display: flex; gap: 16px; }
+    .download-btn {
+      background: #1DB954; color: #fff; border: none;
+      padding: 8px 20px; border-radius: 20px; font-size: 13px;
+      font-weight: 600; cursor: pointer; text-decoration: none;
+      transition: opacity 0.2s;
+    }
+    .download-btn:hover { opacity: 0.8; }
+    .footer { text-align: center; color: rgba(255,255,255,0.3); font-size: 12px; margin-top: 40px; padding-bottom: 20px; }
+    .loading { text-align: center; color: rgba(255,255,255,0.4); padding: 40px; }
+    @media (max-width: 600px) {
+      .container { padding: 16px; }
+      h1 { font-size: 22px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Kabod <span class="accent">Music</span></h1>
+      <p class="subtitle">Partage WiFi — Télécharge les musiques directement sur ton téléphone</p>
+    </header>
+
+    <div class="server-info">
+      <h2>📡 Connexion</h2>
+      <p>Connecte ton téléphone au même réseau WiFi que ton ordinateur, puis ouvre :<br>
+      <code>http://<span id="ip-display">ADRESSE_IP</span>:<span id="port-display">4567</span></code></p>
+    </div>
+
+    <div class="songs-header">
+      <h2>Musiques disponibles</h2>
+      <span class="count" id="song-count">0 titres</span>
+    </div>
+
+    <div class="song-list" id="song-list">
+      <div class="loading">Chargement...</div>
+    </div>
+
+    <div class="footer">
+      Kabod Music — Application de streaming local
+    </div>
+  </div>
+
+  <script>
+    const port = window.location.port || '4567';
+
+    document.getElementById('port-display').textContent = port;
+
+    // Détection IP
+    fetch('/api/songs')
+      .then(r => r.json())
+      .then(songs => {
+        const list = document.getElementById('song-list');
+        const count = document.getElementById('song-count');
+        list.innerHTML = '';
+        count.textContent = songs.length + ' titre' + (songs.length > 1 ? 's' : '');
+
+        songs.forEach(song => {
+          const card = document.createElement('div');
+          card.className = 'song-card';
+          const encName = encodeURIComponent(song.fileName);
+          card.innerHTML = `
+            <div class="song-info">
+              <div class="song-name">${song.displayName}</div>
+              <div class="song-meta">
+                <span>📄 ${song.fileName}</span>
+                <span>📦 ${song.sizeMb} Mo</span>
+              </div>
+            </div>
+            <a href="/download/${encName}" class="download-btn" download>Télécharger</a>
+          `;
+          list.appendChild(card);
+        });
+      })
+      .catch(() => {
+        document.getElementById('song-list').innerHTML =
+          '<div class="loading">❌ Impossible de charger la liste des musiques.</div>';
+      });
+  </script>
+</body>
+</html>

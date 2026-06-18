@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import type { Song, Album, Artist, Playlist } from '../types';
+import type { Song, Album, Artist, Playlist, Lyrics } from '../types';
 
 function isNetworkError(error: unknown): boolean {
   if (!error) return false;
@@ -170,6 +170,42 @@ export const musicService = {
       if (error) throw error;
       return data.map(item => item.song) as unknown as Song[];
     }, []);
+  },
+
+  async getLyrics(songId: string): Promise<Lyrics | null> {
+    return safeQuery(async () => {
+      const { data, error } = await supabase
+        .from('lyrics')
+        .select('*')
+        .eq('song_id', songId)
+        .maybeSingle();
+
+      if (error) throw error;
+      return data as Lyrics | null;
+    }, null);
+  },
+
+  async getTopCharts(limit = 50): Promise<Song[]> {
+    return safeQuery(async () => {
+      const { data, error } = await supabase
+        .from('songs')
+        .select('*, artist:artists(*), album:albums(*)')
+        .order('play_count', { ascending: false })
+        .limit(limit);
+
+      if (error) throw error;
+      return (data as Song[]) ?? [];
+    }, []);
+  },
+
+  async getUserProfile(): Promise<{ email: string; id: string } | null> {
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return null;
+      return { email: user.email ?? 'unknown@email.com', id: user.id };
+    } catch {
+      return null;
+    }
   },
 
   async logPlayHistory(songId: string, durationPlayedSeconds: number): Promise<void> {

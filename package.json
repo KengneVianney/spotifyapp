@@ -9,7 +9,9 @@
     "start": "react-native start",
     "test": "jest",
     "sync:music": "node scripts/sync-local-music-to-supabase.mjs",
-    "icons": "python3 scripts/generate_app_icons.py"
+    "icons": "python3 scripts/generate_app_icons.py",
+    "server": "node server/index.js",
+    "apk": "cd android && ./gradlew assembleDebug"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "^3.1.1",

@@ -13,6 +13,7 @@ import {
   ScrollView,
 } from 'react-native';
 import { authService } from '../services/authService';
+import { GoogleIcon, GithubIcon } from '../components/Icons';
 
 // Regex email complète : vérifie format local@domaine.ext
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
@@ -297,6 +298,35 @@ export default function SignUpScreen({ onSignUpSuccess, onNavigateToLogin }: Sig
                 )}
               </TouchableOpacity>
 
+              {/* Social SignUp */}
+              <View style={styles.socialRow}>
+                <Text style={styles.socialLabel}>Ou continuer avec</Text>
+                <View style={styles.socialBtns}>
+                  <TouchableOpacity
+                    style={[styles.socialBtn, styles.socialBtnGoogle]}
+                    onPress={async () => {
+                      try { setLoading(true); await authService.signInWithGoogle(); }
+                      catch (err: any) { setServerError(err.message || 'Erreur Google.'); }
+                      finally { setLoading(false); }
+                    }}
+                    disabled={loading}
+                    activeOpacity={0.85}>
+                    <GoogleIcon size={22} />
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[styles.socialBtn, styles.socialBtnGithub]}
+                    onPress={async () => {
+                      try { setLoading(true); await authService.signInWithGithub(); }
+                      catch (err: any) { setServerError(err.message || 'Erreur GitHub.'); }
+                      finally { setLoading(false); }
+                    }}
+                    disabled={loading}
+                    activeOpacity={0.85}>
+                    <GithubIcon size={22} />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
               <TouchableOpacity onPress={onNavigateToLogin} style={styles.linkBtn}>
                 <Text style={styles.linkText}>
                   Déjà un compte ?{' '}
@@ -378,6 +408,16 @@ const styles = StyleSheet.create({
   },
   btnDisabled: { opacity: 0.6 },
   btnPrimaryText: { color: '#fff', fontSize: 16, fontWeight: '700', letterSpacing: 0.5 },
+  socialRow: { alignItems: 'center', marginTop: 16 },
+  socialLabel: { fontSize: 12, color: '#666', marginBottom: 12, textTransform: 'uppercase', letterSpacing: 1 },
+  socialBtns: { flexDirection: 'row', gap: 16 },
+  socialBtn: {
+    width: 52, height: 52, borderRadius: 14,
+    alignItems: 'center', justifyContent: 'center',
+    borderWidth: 1, borderColor: '#2A2A3E', backgroundColor: '#0F0F18',
+  },
+  socialBtnGoogle: {},
+  socialBtnGithub: {},
   linkBtn: { alignItems: 'center', marginTop: 20 },
   linkText: { color: '#666', fontSize: 14 },
   linkHighlight: { color: '#3aed4f', fontWeight: '600' },

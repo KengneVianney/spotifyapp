@@ -34,6 +34,7 @@ local.properties
 *.keystore
 !debug.keystore
 .kotlin/
+*.apk
 
 # node.js
 #
@@ -77,3 +78,4 @@ yarn-error.log
 # Environment variables
 .env
 test_supabase.js
+

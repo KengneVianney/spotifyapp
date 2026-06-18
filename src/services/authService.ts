@@ -1,5 +1,5 @@
 import { supabase } from './supabaseClient';
-import type { Profile } from '../types';
+import type { Profile, SocialProvider } from '../types';
 import type { User } from '@supabase/supabase-js';
 
 function profileFromUser(user: User): Profile {
@@ -115,6 +115,64 @@ export const authService = {
       const { data: { session } } = await supabase.auth.getSession();
       return Boolean(session?.user);
     } catch {
+      return false;
+    }
+  },
+
+  /**
+   * OAuth 2.0 PKCE (Authorization Code + Proof Key for Code Exchange).
+   * skipBrowserRedirect: true → mobile : on récupère l'URL, on l'ouvre dans le navigateur,
+   * puis le callback deep link revient avec le code d'autorisation à échanger.
+   */
+  async signInWithProvider(provider: SocialProvider) {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider,
+      options: {
+        redirectTo: 'com.kabodmusic.app://auth/callback',
+        skipBrowserRedirect: true,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent',
+        },
+      },
+    });
+
+    if (error) throw error;
+
+    if (data.url) {
+      const { Linking } = require('react-native');
+      await Linking.openURL(data.url);
+    }
+
+    return data;
+  },
+
+  async signInWithGoogle() {
+    return this.signInWithProvider('google');
+  },
+
+  async signInWithGithub() {
+    return this.signInWithProvider('github');
+  },
+
+  /**
+   * Échange le code d'autorisation OAuth 2.0 reçu via deep link contre une session.
+   * À appeler depuis le handler de deep link dans App.tsx.
+   */
+  async handleOAuthCallback(url: string | null) {
+    if (!url) return false;
+    if (!url.startsWith('com.kabodmusic.app://auth/callback')) return false;
+
+    try {
+      const urlObj = new URL(url);
+      const code = urlObj.searchParams.get('code');
+      if (!code) return false;
+
+      const { error } = await supabase.auth.exchangeCodeForSession(code);
+      if (error) throw error;
+      return true;
+    } catch (error) {
+      console.warn('OAuth callback:', error);
       return false;
     }
   },
