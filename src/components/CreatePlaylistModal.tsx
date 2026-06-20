@@ -14,9 +14,9 @@ import {
 import type { Playlist } from '../types';
 
 interface CreatePlaylistModalProps {
-  visible: boolean;                                              // afficher ou cacher le modal
-  onClose: () => void;                                          // fermer sans créer
-  onConfirm: (name: string, isPrivate: boolean) => Promise<Playlist | null>; // créer la playlist
+  visible: boolean;
+  onClose: () => void;
+  onConfirm: (name: string, isPrivate: boolean, isCollaborative: boolean) => Promise<Playlist | null>;
 }
 
 const SPOTIFY_GREEN = '#1DB954';
@@ -28,30 +28,29 @@ export default function CreatePlaylistModal({
 }: CreatePlaylistModalProps) {
   const [name, setName] = useState('');
   const [isPrivate, setIsPrivate] = useState(false);
+  const [isCollaborative, setIsCollaborative] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  // Réinitialise le formulaire à chaque ouverture
   React.useEffect(() => {
     if (visible) {
       setName('');
       setIsPrivate(false);
+      setIsCollaborative(false);
       setError(null);
     }
   }, [visible]);
 
   const handleConfirm = async () => {
-    // Validation simple
     if (!name.trim()) {
       setError('Le nom de la playlist est obligatoire.');
       return;
     }
     setLoading(true);
     setError(null);
-    const result = await onConfirm(name.trim(), isPrivate);
+    const result = await onConfirm(name.trim(), isPrivate, isCollaborative);
     setLoading(false);
     if (result) {
-      // Succès : on ferme le modal
       onClose();
     } else {
       setError('Erreur lors de la création. Réessaie.');
@@ -61,15 +60,12 @@ export default function CreatePlaylistModal({
   return (
     <Modal
       visible={visible}
-      transparent   // fond semi-transparent
+      transparent
       animationType="fade"
       onRequestClose={onClose}>
-
-      {/* Fond sombre derrière le modal */}
       <KeyboardAvoidingView
         style={styles.overlay}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
-
         <View style={styles.card}>
           <Text style={styles.title}>Nouvelle playlist</Text>
 
@@ -87,9 +83,12 @@ export default function CreatePlaylistModal({
             maxLength={50}
           />
 
-          {/* Toggle privée/publique */}
+          {/* Toggle privée */}
           <View style={styles.toggleRow}>
-            <Text style={styles.toggleLabel}>Playlist privée</Text>
+            <View>
+              <Text style={styles.toggleLabel}>Playlist privée</Text>
+              <Text style={styles.toggleDesc}>Visible uniquement par toi</Text>
+            </View>
             <Switch
               value={isPrivate}
               onValueChange={setIsPrivate}
@@ -98,10 +97,31 @@ export default function CreatePlaylistModal({
             />
           </View>
 
-          {/* Message d'erreur */}
+          {/* Toggle collaborative */}
+          <View style={styles.toggleRow}>
+            <View>
+              <Text style={styles.toggleLabel}>Playlist collaborative</Text>
+              <Text style={styles.toggleDesc}>Tes amis peuvent ajouter des titres</Text>
+            </View>
+            <Switch
+              value={isCollaborative}
+              onValueChange={setIsCollaborative}
+              trackColor={{ false: '#333', true: SPOTIFY_GREEN }}
+              thumbColor="#fff"
+            />
+          </View>
+
+          {/* Info code si collaborative */}
+          {isCollaborative && (
+            <View style={styles.infoBox}>
+              <Text style={styles.infoText}>
+                🔗 Un code d'invitation sera généré automatiquement que tu pourras partager avec tes amis.
+              </Text>
+            </View>
+          )}
+
           {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-          {/* Boutons */}
           <View style={styles.btnRow}>
             <TouchableOpacity
               style={styles.btnCancel}
@@ -122,7 +142,6 @@ export default function CreatePlaylistModal({
             </TouchableOpacity>
           </View>
         </View>
-
       </KeyboardAvoidingView>
     </Modal>
   );
@@ -163,11 +182,29 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 16,
   },
   toggleLabel: {
-    color: '#aaa',
+    color: '#fff',
     fontSize: 14,
+    fontWeight: '600',
+  },
+  toggleDesc: {
+    color: '#666',
+    fontSize: 12,
+    marginTop: 2,
+  },
+  infoBox: {
+    backgroundColor: 'rgba(29, 185, 84, 0.1)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 16,
+    borderWidth: 1,
+    borderColor: 'rgba(29, 185, 84, 0.3)',
+  },
+  infoText: {
+    color: SPOTIFY_GREEN,
+    fontSize: 13,
   },
   errorText: {
     color: '#F87171',
@@ -197,9 +234,7 @@ const styles = StyleSheet.create({
     backgroundColor: SPOTIFY_GREEN,
     alignItems: 'center',
   },
-  btnDisabled: {
-    opacity: 0.6,
-  },
+  btnDisabled: { opacity: 0.6 },
   btnCreateText: {
     color: '#fff',
     fontWeight: '700',

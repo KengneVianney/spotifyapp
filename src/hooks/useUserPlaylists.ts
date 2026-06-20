@@ -8,10 +8,11 @@ interface UseUserPlaylists {
   playlists: Playlist[];
   loading: boolean;
   error: string | null;
-  createPlaylist: (name: string, isPrivate?: boolean) => Promise<Playlist | null>;
+  createPlaylist: (name: string, isPrivate?: boolean, isCollaborative?: boolean) => Promise<Playlist | null>;
   deletePlaylist: (id: string) => Promise<void>;
   removeSongFromPlaylist: (playlistId: string, songId: string) => Promise<void>;
   getPlaylistSongs: (playlistId: string) => Promise<Song[]>;
+  joinPlaylist: (inviteCode: string) => Promise<Playlist | null>;
   refetch: () => Promise<void>;
 }
 
@@ -41,9 +42,10 @@ export function useUserPlaylists(): UseUserPlaylists {
   const createPlaylist = async (
     name: string,
     isPrivate: boolean = false,
+    isCollaborative: boolean = false,
   ): Promise<Playlist | null> => {
     try {
-      const playlist = await musicService.createPlaylist(name, isPrivate);
+      const playlist = await musicService.createPlaylist(name, isPrivate, isCollaborative);
       setPlaylists(prev => [playlist, ...prev]);
       return playlist;
     } catch (err) {
@@ -53,22 +55,20 @@ export function useUserPlaylists(): UseUserPlaylists {
     }
   };
 
-  // Supprime la playlist sur Supabase ET localement
   const deletePlaylist = async (id: string): Promise<void> => {
-  try {
-    const { error: err } = await supabase
-      .from('playlists')
-      .delete()
-      .eq('id', id);
-    if (err) throw err;
-    setPlaylists(prev => prev.filter(p => p.id !== id));
-  } catch (err) {
-    const message = err instanceof Error ? err.message : 'Erreur suppression';
-    setError(message);
-  }
-};
+    try {
+      const { error: err } = await supabase
+        .from('playlists')
+        .delete()
+        .eq('id', id);
+      if (err) throw err;
+      setPlaylists(prev => prev.filter(p => p.id !== id));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Erreur suppression';
+      setError(message);
+    }
+  };
 
-  // Retire un titre d'une playlist
   const removeSongFromPlaylist = async (
     playlistId: string,
     songId: string,
@@ -93,6 +93,22 @@ export function useUserPlaylists(): UseUserPlaylists {
     }
   };
 
+  const joinPlaylist = async (inviteCode: string): Promise<Playlist | null> => {
+    try {
+      const playlist = await musicService.joinCollaborativePlaylist(inviteCode);
+      setPlaylists(prev => {
+        const exists = prev.find(p => p.id === playlist.id);
+        if (exists) return prev;
+        return [playlist, ...prev];
+      });
+      return playlist;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Code invalide.';
+      setError(message);
+      return null;
+    }
+  };
+
   return {
     playlists,
     loading,
@@ -101,6 +117,7 @@ export function useUserPlaylists(): UseUserPlaylists {
     deletePlaylist,
     removeSongFromPlaylist,
     getPlaylistSongs,
+    joinPlaylist,
     refetch: fetchPlaylists,
   };
 }

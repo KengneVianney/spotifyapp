@@ -7,6 +7,7 @@ import {
   TouchableOpacity,
   StatusBar,
   ScrollView,
+  Clipboard,
 } from 'react-native';
 import { PlayIcon } from '../components/Icons';
 import BottomTabBar from '../components/BottomTabBar';
@@ -14,9 +15,11 @@ import MiniPlayer from '../components/MiniPlayer';
 import { catalogService } from '../services/catalogService';
 import { useUserPlaylists } from '../hooks/useUserPlaylists';
 import CreatePlaylistModal from '../components/CreatePlaylistModal';
+import JoinPlaylistModal from '../components/JoinPlaylistModal';
+import AddSongsModal from '../components/AddSongsModal';
+import LocalScanScreen from './LocalScanScreen';
 import type { Song, Artist, Album, Playlist } from '../types';
 import type { CuratedPlaylist } from '../data/localMusicData';
-import AddSongsModal from '../components/AddSongsModal';
 
 const SPOTIFY_GREEN = '#1DB954';
 
@@ -56,11 +59,21 @@ export default function LibraryScreen({
   const [selectedAlbum, setSelectedAlbum] = useState<Album | null>(null);
   const [selectedPlaylist, setSelectedPlaylist] = useState<CuratedPlaylist | null>(null);
   const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showJoinModal, setShowJoinModal] = useState(false);
   const [selectedUserPlaylist, setSelectedUserPlaylist] = useState<Playlist | null>(null);
   const [userPlaylistSongs, setUserPlaylistSongs] = useState<Song[]>([]);
   const [showAddSongsModal, setShowAddSongsModal] = useState(false);
+  const [showLocalScan, setShowLocalScan] = useState(false);
+  const [codeCopied, setCodeCopied] = useState(false);
 
-  const { playlists: userPlaylists, createPlaylist, getPlaylistSongs, deletePlaylist, removeSongFromPlaylist } = useUserPlaylists();
+  const {
+    playlists: userPlaylists,
+    createPlaylist,
+    getPlaylistSongs,
+    deletePlaylist,
+    removeSongFromPlaylist,
+    joinPlaylist,
+  } = useUserPlaylists();
 
   const songs = catalogService.getSongsSync();
   const artists = catalogService.getArtists();
@@ -81,6 +94,12 @@ export default function LibraryScreen({
     if (!selectedPlaylist) return [];
     return catalogService.getPlaylistSongs(selectedPlaylist.id, favoriteIds);
   }, [selectedPlaylist, favoriteIds]);
+
+  const handleCopyCode = (code: string) => {
+    Clipboard.setString(code);
+    setCodeCopied(true);
+    setTimeout(() => setCodeCopied(false), 2000);
+  };
 
   const renderSongList = (list: Song[]) =>
     list.map((song, idx) => {
@@ -140,9 +159,7 @@ export default function LibraryScreen({
             </View>
           )}
           <View style={styles.bannerText}>
-            <Text style={styles.bannerTitle} numberOfLines={2}>
-              {title}
-            </Text>
+            <Text style={styles.bannerTitle} numberOfLines={2}>{title}</Text>
             <Text style={styles.bannerSubtitle}>{subtitle}</Text>
             <Text style={styles.bannerMeta}>
               {songsList.length} titre{songsList.length > 1 ? 's' : ''}
@@ -184,6 +201,16 @@ export default function LibraryScreen({
     </View>
   );
 
+  if (showLocalScan) {
+    return (
+      <LocalScanScreen
+        onBack={() => setShowLocalScan(false)}
+        onPlaySong={onPlaySong}
+        currentSong={currentSong}
+      />
+    );
+  }
+
   if (selectedArtist) {
     const idx = artists.findIndex(a => a.id === selectedArtist.id);
     return renderDetailView(
@@ -221,142 +248,150 @@ export default function LibraryScreen({
     );
   }
 
-  // Vue détail d'une playlist Supabase
-if (selectedUserPlaylist) {
-  return (
-    <View style={styles.detailContainer}>
-      <View style={styles.detailHeader}>
-        <TouchableOpacity style={styles.backBtn} onPress={() => setSelectedUserPlaylist(null)}>
-          <Text style={styles.backBtnText}>← Retour</Text>
-        </TouchableOpacity>
-        <Text style={styles.detailHeaderTitle} numberOfLines={1}>
-          {selectedUserPlaylist.name}
-        </Text>
-        {/* Bouton supprimer la playlist */}
-        <TouchableOpacity
-          onPress={async () => {
-            await deletePlaylist(selectedUserPlaylist.id);
-            setSelectedUserPlaylist(null);
-          }}>
-          <Text style={styles.deletePlaylistText}>🗑️</Text>
-        </TouchableOpacity>
-      </View>
-
-      <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScroll}>
-        <View style={styles.bannerInfo}>
-          <View style={[styles.bannerAvatar, { backgroundColor: SPOTIFY_GREEN }]}>
-            <Text style={styles.bannerAvatarText}>
-              {selectedUserPlaylist.name.charAt(0).toUpperCase()}
-            </Text>
-          </View>
-          <View style={styles.bannerText}>
-            <Text style={styles.bannerTitle} numberOfLines={2}>
-              {selectedUserPlaylist.name}
-            </Text>
-            <Text style={styles.bannerSubtitle}>
-              {selectedUserPlaylist.is_private ? '🔒 Privée' : '🌍 Publique'}
-            </Text>
-            <Text style={styles.bannerMeta}>
-              {userPlaylistSongs.length} titre{userPlaylistSongs.length > 1 ? 's' : ''}
-            </Text>
-          </View>
+  if (selectedUserPlaylist) {
+    return (
+      <View style={styles.detailContainer}>
+        <View style={styles.detailHeader}>
+          <TouchableOpacity style={styles.backBtn} onPress={() => setSelectedUserPlaylist(null)}>
+            <Text style={styles.backBtnText}>← Retour</Text>
+          </TouchableOpacity>
+          <Text style={styles.detailHeaderTitle} numberOfLines={1}>
+            {selectedUserPlaylist.name}
+          </Text>
+          <TouchableOpacity
+            onPress={async () => {
+              await deletePlaylist(selectedUserPlaylist.id);
+              setSelectedUserPlaylist(null);
+            }}>
+            <Text style={styles.deletePlaylistText}>🗑️</Text>
+          </TouchableOpacity>
         </View>
 
-        <TouchableOpacity
-          style={styles.playAllBtn}
-          onPress={() =>
-            userPlaylistSongs.length > 0 &&
-            onPlaySong(userPlaylistSongs[0], userPlaylistSongs)
-          }>
-          <PlayIcon size={20} color="#fff" />
-          <Text style={styles.playAllText}>Tout écouter</Text>
-        </TouchableOpacity>
+        <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.detailScroll}>
+          <View style={styles.bannerInfo}>
+            <View style={[styles.bannerAvatar, { backgroundColor: SPOTIFY_GREEN }]}>
+              <Text style={styles.bannerAvatarText}>
+                {selectedUserPlaylist.name.charAt(0).toUpperCase()}
+              </Text>
+            </View>
+            <View style={styles.bannerText}>
+              <Text style={styles.bannerTitle} numberOfLines={2}>
+                {selectedUserPlaylist.name}
+              </Text>
+              <Text style={styles.bannerSubtitle}>
+                {selectedUserPlaylist.is_collaborative ? '👥 Collaborative' : selectedUserPlaylist.is_private ? '🔒 Privée' : '🌍 Publique'}
+              </Text>
+              <Text style={styles.bannerMeta}>
+                {userPlaylistSongs.length} titre{userPlaylistSongs.length > 1 ? 's' : ''}
+              </Text>
+            </View>
+          </View>
 
-        {/* Liste des titres avec bouton retirer */}
-        <View style={styles.detailSongs}>
-          {userPlaylistSongs.map((song, idx) => {
-            const isCurrentSong = currentSong?.id === song.id;
-            return (
-              <View key={song.id} style={styles.songRowWrap}>
-                <TouchableOpacity
-                  style={[styles.songRow, isCurrentSong && styles.songRowActive, { flex: 1 }]}
-                  onPress={() => onPlaySong(song, userPlaylistSongs)}
-                  activeOpacity={0.7}>
-                  <Image
-                    source={catalogService.getCoverForIndex(idx)}
-                    style={styles.songCover}
-                  />
-                  <View style={styles.songInfo}>
-                    <Text
-                      style={[styles.songTitle, isCurrentSong && styles.songTitleActive]}
-                      numberOfLines={1}>
-                      {song.title}
-                    </Text>
-                    <Text style={styles.songArtist} numberOfLines={1}>
-                      {song.artist?.name ?? 'Artiste inconnu'}
-                    </Text>
-                  </View>
-                  <Text style={styles.songDuration}>
-                    {Math.floor(song.duration_seconds / 60)}:
-                    {String(Math.floor(song.duration_seconds % 60)).padStart(2, '0')}
-                  </Text>
-                </TouchableOpacity>
-
-                {/* Bouton retirer le titre */}
-                <TouchableOpacity
-                  style={styles.removeBtn}
-                  onPress={async () => {
-                    await removeSongFromPlaylist(selectedUserPlaylist.id, song.id);
-                    const updated = await getPlaylistSongs(selectedUserPlaylist.id);
-                    setUserPlaylistSongs(updated);
-                  }}>
-                  <Text style={styles.removeBtnText}>✕</Text>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
-
-          {userPlaylistSongs.length === 0 ? (
-            <Text style={styles.emptyText}>
-              Aucun titre. Appuie sur "+ Ajouter des titres".
-            </Text>
+          {/* Code d'invitation pour playlist collaborative */}
+          {selectedUserPlaylist.is_collaborative && selectedUserPlaylist.invite_code ? (
+            <TouchableOpacity
+              style={styles.inviteCodeWrap}
+              onPress={() => handleCopyCode(selectedUserPlaylist.invite_code ?? '')}>
+              <Text style={styles.inviteCodeLabel}>Code d'invitation</Text>
+              <Text style={styles.inviteCode}>{selectedUserPlaylist.invite_code}</Text>
+              <Text style={styles.inviteCodeCopy}>
+                {codeCopied ? '✓ Copié !' : 'Appuie pour copier'}
+              </Text>
+            </TouchableOpacity>
           ) : null}
-        </View>
 
-        <View style={{ height: 160 }} />
-      </ScrollView>
+          <TouchableOpacity
+            style={styles.playAllBtn}
+            onPress={() =>
+              userPlaylistSongs.length > 0 &&
+              onPlaySong(userPlaylistSongs[0], userPlaylistSongs)
+            }>
+            <PlayIcon size={20} color="#fff" />
+            <Text style={styles.playAllText}>Tout écouter</Text>
+          </TouchableOpacity>
 
-      {/* Bouton ajouter des titres */}
-      <TouchableOpacity
-        style={styles.addSongsBtn}
-        onPress={() => setShowAddSongsModal(true)}>
-        <Text style={styles.addSongsBtnText}>+ Ajouter des titres</Text>
-      </TouchableOpacity>
+          <View style={styles.detailSongs}>
+            {userPlaylistSongs.map((song, idx) => {
+              const isCurrentSong = currentSong?.id === song.id;
+              return (
+                <View key={song.id} style={styles.songRowWrap}>
+                  <TouchableOpacity
+                    style={[styles.songRow, isCurrentSong && styles.songRowActive, { flex: 1 }]}
+                    onPress={() => onPlaySong(song, userPlaylistSongs)}
+                    activeOpacity={0.7}>
+                    <Image
+                      source={catalogService.getCoverForIndex(idx)}
+                      style={styles.songCover}
+                    />
+                    <View style={styles.songInfo}>
+                      <Text
+                        style={[styles.songTitle, isCurrentSong && styles.songTitleActive]}
+                        numberOfLines={1}>
+                        {song.title}
+                      </Text>
+                      <Text style={styles.songArtist} numberOfLines={1}>
+                        {song.artist?.name ?? 'Artiste inconnu'}
+                      </Text>
+                    </View>
+                    <Text style={styles.songDuration}>
+                      {Math.floor(song.duration_seconds / 60)}:
+                      {String(Math.floor(song.duration_seconds % 60)).padStart(2, '0')}
+                    </Text>
+                  </TouchableOpacity>
 
-      {currentSong ? (
-        <MiniPlayer
-          currentSong={currentSong}
-          isPlaying={isPlaying}
-          isLiked={isFavorite(currentSong.id)}
-          progressPercent={playbackProgress}
-          onOpenNowPlaying={() => onNavigate('nowplaying')}
-          onTogglePlay={onTogglePlay}
-          onToggleLike={() => onToggleFavorite(currentSong.id)}
+                  <TouchableOpacity
+                    style={styles.removeBtn}
+                    onPress={async () => {
+                      await removeSongFromPlaylist(selectedUserPlaylist.id, song.id);
+                      const updated = await getPlaylistSongs(selectedUserPlaylist.id);
+                      setUserPlaylistSongs(updated);
+                    }}>
+                    <Text style={styles.removeBtnText}>✕</Text>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+
+            {userPlaylistSongs.length === 0 ? (
+              <Text style={styles.emptyText}>
+                Aucun titre. Appuie sur "+ Ajouter des titres".
+              </Text>
+            ) : null}
+          </View>
+
+          <View style={{ height: 160 }} />
+        </ScrollView>
+
+        <TouchableOpacity
+          style={styles.addSongsBtn}
+          onPress={() => setShowAddSongsModal(true)}>
+          <Text style={styles.addSongsBtnText}>+ Ajouter des titres</Text>
+        </TouchableOpacity>
+
+        {currentSong ? (
+          <MiniPlayer
+            currentSong={currentSong}
+            isPlaying={isPlaying}
+            isLiked={isFavorite(currentSong.id)}
+            progressPercent={playbackProgress}
+            onOpenNowPlaying={() => onNavigate('nowplaying')}
+            onTogglePlay={onTogglePlay}
+            onToggleLike={() => onToggleFavorite(currentSong.id)}
+          />
+        ) : null}
+
+        <AddSongsModal
+          visible={showAddSongsModal}
+          playlistId={selectedUserPlaylist.id}
+          onClose={() => setShowAddSongsModal(false)}
+          onSongsAdded={async () => {
+            const updated = await getPlaylistSongs(selectedUserPlaylist.id);
+            setUserPlaylistSongs(updated);
+          }}
         />
-      ) : null}
-
-      <AddSongsModal
-        visible={showAddSongsModal}
-        playlistId={selectedUserPlaylist.id}
-        onClose={() => setShowAddSongsModal(false)}
-        onSongsAdded={async () => {
-          const updated = await getPlaylistSongs(selectedUserPlaylist.id);
-          setUserPlaylistSongs(updated);
-        }}
-      />
-    </View>
-  );
-}
+      </View>
+    );
+  }
 
   return (
     <View style={styles.container}>
@@ -365,9 +400,17 @@ if (selectedUserPlaylist) {
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}>
         <View style={styles.header}>
           <Text style={styles.headerTitle}>Ma Bibliothèque</Text>
-          <TouchableOpacity onPress={onLogout}>
-            <Text style={styles.logoutText}>Déconnexion</Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', gap: 12, alignItems: 'center' }}>
+            <TouchableOpacity onPress={() => setShowJoinModal(true)}>
+              <Text style={styles.localScanText}>🔗 Rejoindre</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => setShowLocalScan(true)}>
+              <Text style={styles.localScanText}>📁 Local</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={onLogout}>
+              <Text style={styles.logoutText}>Déconnexion</Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.categoryTabs}>
@@ -386,43 +429,45 @@ if (selectedUserPlaylist) {
         <View style={styles.tabContent}>
           {activeTab === 'playlists' && (
             <View>
-              {/* Bouton créer une playlist */}
               <TouchableOpacity
                 style={styles.createBtn}
                 onPress={() => setShowCreateModal(true)}>
                 <Text style={styles.createBtnText}>+ Nouvelle playlist</Text>
               </TouchableOpacity>
 
-              {/* Playlists Supabase de l'utilisateur */}
               {userPlaylists.map(pl => (
                 <TouchableOpacity
                   key={pl.id}
                   style={[styles.libRow, { marginBottom: 16 }]}
                   onPress={async () => {
-                    const songs = await getPlaylistSongs(pl.id);
-                    setUserPlaylistSongs(songs);
+                    const fetchedSongs = await getPlaylistSongs(pl.id);
+                    setUserPlaylistSongs(fetchedSongs);
                     setSelectedUserPlaylist(pl);
                   }}>
                   <View style={styles.plCoverWrap}>
-                    <Text style={styles.plIcon}>🎵</Text>
+                    <Text style={styles.plIcon}>
+                      {pl.is_collaborative ? '👥' : '🎵'}
+                    </Text>
                   </View>
                   <View style={styles.libRowInfo}>
                     <Text style={styles.rowTitle}>{pl.name}</Text>
                     <Text style={styles.rowSubtitle}>
-                      {pl.is_private ? '🔒 Privée' : '🌍 Publique'} · Ma playlist
+                      {pl.is_collaborative
+                        ? '👥 Collaborative'
+                        : pl.is_private
+                        ? '🔒 Privée'
+                        : '🌍 Publique'} · Ma playlist
                     </Text>
                   </View>
                 </TouchableOpacity>
               ))}
 
-              {/* Séparateur si il y a des playlists Supabase */}
               {userPlaylists.length > 0 && (
                 <View style={styles.sectionDivider}>
                   <Text style={styles.sectionDividerText}>Playlists recommandées</Text>
                 </View>
               )}
 
-              {/* Playlists curées locales existantes */}
               {playlists.map(pl => {
                 const count =
                   pl.id === 'pl-favorites'
@@ -514,11 +559,16 @@ if (selectedUserPlaylist) {
 
       <BottomTabBar active="library" onNavigate={onNavigate} />
 
-      {/* Modal création playlist */}
       <CreatePlaylistModal
         visible={showCreateModal}
         onClose={() => setShowCreateModal(false)}
         onConfirm={createPlaylist}
+      />
+
+      <JoinPlaylistModal
+        visible={showJoinModal}
+        onClose={() => setShowJoinModal(false)}
+        onConfirm={joinPlaylist}
       />
     </View>
   );
@@ -536,6 +586,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: { fontSize: 28, fontWeight: '700', color: '#fff' },
   logoutText: { fontSize: 13, color: SPOTIFY_GREEN, fontWeight: '600' },
+  localScanText: { fontSize: 13, color: SPOTIFY_GREEN, fontWeight: '600' },
   categoryTabs: { flexDirection: 'row', paddingHorizontal: 24, gap: 12, marginBottom: 20 },
   catTab: {
     paddingHorizontal: 16,
@@ -619,21 +670,6 @@ const styles = StyleSheet.create({
     borderRadius: 12,
     gap: 12,
   },
-  addSongsBtn: {
-  position: 'absolute',
-  bottom: 100,
-  left: 24,
-  right: 24,
-  backgroundColor: SPOTIFY_GREEN,
-  borderRadius: 14,
-  paddingVertical: 14,
-  alignItems: 'center',
-},
-addSongsBtnText: {
-  color: '#fff',
-  fontWeight: '700',
-  fontSize: 15,
-},
   songRowActive: { backgroundColor: 'rgba(29, 185, 84, 0.1)' },
   songCover: { width: 48, height: 48, borderRadius: 8 },
   songInfo: { flex: 1 },
@@ -641,6 +677,17 @@ addSongsBtnText: {
   songTitleActive: { color: SPOTIFY_GREEN },
   songArtist: { fontSize: 12, color: 'rgba(255,255,255,0.55)', marginTop: 2 },
   songDuration: { fontSize: 12, color: 'rgba(255,255,255,0.4)' },
+  addSongsBtn: {
+    position: 'absolute',
+    bottom: 100,
+    left: 24,
+    right: 24,
+    backgroundColor: SPOTIFY_GREEN,
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+  },
+  addSongsBtnText: { color: '#fff', fontWeight: '700', fontSize: 15 },
   createBtn: {
     backgroundColor: 'rgba(29, 185, 84, 0.15)',
     borderRadius: 12,
@@ -650,35 +697,13 @@ addSongsBtnText: {
     alignItems: 'center',
     marginBottom: 20,
   },
-  createBtnText: {
-    color: SPOTIFY_GREEN,
-    fontWeight: '700',
-    fontSize: 15,
-  },
+  createBtnText: { color: SPOTIFY_GREEN, fontWeight: '700', fontSize: 15 },
   sectionDivider: {
     marginVertical: 16,
     borderTopWidth: 1,
     borderTopColor: 'rgba(255,255,255,0.06)',
     paddingTop: 16,
   },
-  songRowWrap: {
-  flexDirection: 'row',
-  alignItems: 'center',
-  marginBottom: 4,
-},
-removeBtn: {
-  paddingHorizontal: 12,
-  paddingVertical: 10,
-},
-removeBtnText: {
-  color: '#F87171',
-  fontSize: 16,
-  fontWeight: '700',
-},
-deletePlaylistText: {
-  fontSize: 20,
-  paddingLeft: 12,
-},
   sectionDividerText: {
     color: 'rgba(255,255,255,0.4)',
     fontSize: 12,
@@ -686,5 +711,37 @@ deletePlaylistText: {
     letterSpacing: 0.5,
     textTransform: 'uppercase',
     marginBottom: 16,
+  },
+  songRowWrap: { flexDirection: 'row', alignItems: 'center', marginBottom: 4 },
+  removeBtn: { paddingHorizontal: 12, paddingVertical: 10 },
+  removeBtnText: { color: '#F87171', fontSize: 16, fontWeight: '700' },
+  deletePlaylistText: { fontSize: 20, paddingLeft: 12 },
+  inviteCodeWrap: {
+    backgroundColor: 'rgba(29, 185, 84, 0.1)',
+    borderRadius: 10,
+    padding: 12,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: 'rgba(29, 185, 84, 0.3)',
+    alignItems: 'center',
+  },
+  inviteCodeLabel: {
+    color: 'rgba(255,255,255,0.5)',
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  inviteCode: {
+    color: SPOTIFY_GREEN,
+    fontSize: 24,
+    fontWeight: '700',
+    letterSpacing: 6,
+  },
+  inviteCodeCopy: {
+    color: 'rgba(255,255,255,0.3)',
+    fontSize: 11,
+    marginTop: 4,
   },
 });

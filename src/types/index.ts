@@ -50,9 +50,12 @@ export interface Playlist {
   id: string;
   name: string;
   is_private: boolean;
+  is_collaborative: boolean;
+  invite_code: string | null;
+  collaborators: string[];
   user_id: string;
   created_at: string;
-  songs?: Song[]; // Optionnel : jointure
+  songs?: Song[];
 }
 
 export interface PlaylistSong {
