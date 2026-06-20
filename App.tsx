@@ -90,8 +90,8 @@ export default function App() {
     startSong(queue[nextIndex]);
   };
 
-  const goToNextSong = () => goToAdjacentSong(1);
-  const goToPreviousSong = () => goToAdjacentSong(-1);
+  const goToNextSong = useCallback(() => goToAdjacentSong(1), [queue, currentSong]);
+  const goToPreviousSong = useCallback(() => goToAdjacentSong(-1), [queue, currentSong]);
 
   const nextSong = (() => {
     if (!currentSong || queue.length === 0) return null;
@@ -215,7 +215,6 @@ export default function App() {
   return (
     <SafeAreaProvider>
       <SafeAreaView style={styles.container}>
-        {/* Lecteur audio global : la lecture continue d'un écran à l'autre. */}
         <GlobalAudioPlayer
           currentSong={currentSong}
           nextSong={nextSong}
